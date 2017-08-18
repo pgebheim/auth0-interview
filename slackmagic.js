@@ -8,6 +8,7 @@ var bodyParser = require('body-parser')
 // Define some helper middlewares
 //
 const algoliaMiddleware = (req, res, next) => {
+  console.log(req.webtaskContext.secrets);
   req.algolia = {};
   req.algolia.client = algoliasearch(req.webtaskContext.secrets.ALGOLIA_APP_ID, req.webtaskContext.secrets.ALGOLIA_API_KEY);
   req.algolia.index = {
@@ -20,9 +21,13 @@ const algoliaMiddleware = (req, res, next) => {
 const slackTokenCheckMiddleware = (req, res, next) => {
   // Slack will send us a verification code if its for this particular app
   // check for this so we're not just going to be receiving random data.
-  var data = req.webtaskContext.data;
-  if(data && data.token != req.webtaskContext.secrets.SLACK_VERIFICATION_TOKEN) {
-    return res.status(401).send({error: "Not from slack"});
+  var token = req.body.token;
+  if(token && token != req.webtaskContext.secrets.SLACK_VERIFICATION_TOKEN) {
+    return res.status(403).send({error: "Not from slack"});
+  }
+  
+  if(req.body.challenge) {
+    return res.send({challenge: req.body.challenge});
   }
   next();
 }
@@ -30,7 +35,7 @@ const slackTokenCheckMiddleware = (req, res, next) => {
 //
 // Put middleware in our middleware chain
 //
-app.use(bodyParser.urlencoded());
+app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 app.use(algoliaMiddleware);
 app.use(slackTokenCheckMiddleware);
@@ -90,10 +95,21 @@ const findMessages = function(index, terms, cb) {
 app.get('/', (req, res) => res.send('Hello World'));
 
 
-app.post('/api/slack/events/message', (req, res) => {
+app.post('/api/slack/events', (req, res) => {
   var event = req.body.event;
-
-  indexMessage(req.algolia.index.messages, event, (err, result) => {
+  var handler = null;
+  
+  switch(req.body.data.type) {
+    case 'message':
+      handler = indexMessage;
+    // Add More
+  }
+  
+  if(!handler) {
+    return req.status(500).error({error: "Event type not allowed: " + req.body.event.type});
+  }
+  
+  handler(req.algolia.index.messages, event, (err, result) => {
     if(err) {
       res.status(500).send({error: err});
     } else {
@@ -116,3 +132,4 @@ app.post('/api/slack/commands/history', (req, res) => {
 });
 
 module.exports = app;
+
