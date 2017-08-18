@@ -4,6 +4,7 @@ const moment = require('moment@2.11.2');
 const slack = require('slack@8.3.1');
 const request = require('request');
 const async = require('async');
+const streams = require('memory-streams');
 
 var app = new (require('express'))();
 var bodyParser = require('body-parser');
@@ -71,12 +72,21 @@ const indexMessage = (index, event, cb) => {
   });
 };
 
-const indexFile = (index, event, cb) => {
- if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
-    request(event.file.url_private, {
-      auth: {
-        bearer: 
-      }
+const indexFile = (index, event, ctx, cb) => {
+  if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
+    console.log('Doing the file thing');
+    var cache = new streams.WritableStream();
+    
+    ctx.storage.get((err, data) => {
+      console.log(data);
+      request.get(event.file.url_private_download, {
+        auth: {
+          bearer: data[event.team_id].bot.bot_access_token
+        }
+      }).on('response', (err, response) => {
+        cb(null, "Got File");
+      });
+      
     });
   } else {
     cb(null, null);
@@ -129,6 +139,7 @@ app.post('/api/slack/events', (req, res) => {
   event.team_id = req.body.team_id;
   event.event_id = req.body.event_id;
   
+  
   var strategies = [];
   switch(event.type) {
     case 'message':
@@ -139,12 +150,12 @@ app.post('/api/slack/events', (req, res) => {
   
   switch(event.subtype) {
     case "file_share":
-      strategies.push(_.partial(indexFile, req.algolia.index.messages, event));
+      strategies.push(_.partial(indexFile, req.algolia.index.messages, event, req.webtaskContext));
       break;
   }
   
   if(strategies.length === 0) {
-    return req.status(500).error({error: "Event type not allowed: " + event.type});
+    return res.status(500).error({error: "Event type not allowed: " + event.type});
   }
   
   async.parallel(strategies, (err, result) => {
@@ -190,7 +201,7 @@ app.get('/api/oauth/callback', (req, res) => {
             return ctx.storage.set(data, set_cb);
           }
           
-          return req.status(500).send({error: "Did not authorize user properly, try again"});
+          return res.status(500).send({error: "Did not authorize user properly, try again"});
         }
         
         res.send("Authorized -- Go invite @indexer_bot into a channel");
