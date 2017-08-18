@@ -3,6 +3,7 @@
     "lodash": "4.x",
     "moment": "",
     "memory-streams": "",
-    "slack": ""
+    "slack": "",
+    "stream-buffers": "3.0.1"
   }
 }
