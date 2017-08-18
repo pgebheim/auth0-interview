@@ -79,11 +79,6 @@ const indexFile = (index, event, ctx, cb) => {
     
     ctx.storage.get((err, data) => {
       console.log(data);
-      cache.on('end', () => {
-        console.log('Stream full')
-        console.log(cache);
-      })
-      
       request.get(event.file.url_private_download, {
         auth: {
           bearer: data[event.team_id].bot.bot_access_token
@@ -91,17 +86,29 @@ const indexFile = (index, event, ctx, cb) => {
       }).on('response', (response) => {
         cb(null, "Got File");
       }).on('end', () => {
+        console.log("File received");
+        const formData = {
+          file: {
+            value: new stream.ReadableSteam(cache.toBuffer()),
+            options: {
+              filename: 'file',
+              contentType: event.file.contentType
+            }
+          },
+          mode: 'document_photo',
+          apiKey: ctx.secrets.HAVEN_KEY
+        };
+        
         request.post({
           url: "http://api.havenondemand.com/1/api/sync/ocrdocument/v1",
-          formData: {
-            file: {
-              value: new streams.ReadableStream(cache.toBuffer()),
-              options: {
-                contentType: event.file.contentType
-              }
-            },
-            mode: 'document_photo',
-            apiKey: ctx.secrets.HAVEN_KEY
+          formData: formData
+        }, (err, response, body) => {
+          body = JSON.parse(body);
+          console.log(body);
+          if(body && body.text_block) {
+            event.ocrtext = _.map(body.text_block, ((b) => b.text)).join(' ');
+            console.log(event);
+            indexMessage(index, event, (err, response) => console.log(response));
           }
         })
       }).pipe(cache);
