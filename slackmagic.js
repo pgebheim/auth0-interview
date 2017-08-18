@@ -35,6 +35,17 @@ const slackTokenCheckMiddleware = (req, res, next) => {
   next();
 };
 
+const readStorage = (req, res, next) => {
+  if(req.body.team_id) {
+    req.webtaskContext.storage.get((err, data) => {
+      req.storage = data[req.team_id];
+      next();
+    });
+  } else {
+    next();
+  }
+};
+
 //
 // Put middleware in our middleware chain
 //
@@ -50,7 +61,6 @@ app.use(slackTokenCheckMiddleware);
 
 // Takes an event payload from slack and submits it to the algolia index
 const indexMessage = (index, event, cb) => {
-  console.log(event);
   event.event_ts = parseFloat(event.event_ts);
   index.addObject(event, event.event_id, (err, content) => {
     if(err) {
@@ -62,10 +72,10 @@ const indexMessage = (index, event, cb) => {
 };
 
 const indexFile = (index, event, cb) => {
-  if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
+ if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
     request(event.file.url_private, {
       auth: {
-        bearer: ''
+        bearer: 
       }
     });
   } else {
@@ -77,8 +87,11 @@ const indexFile = (index, event, cb) => {
 const responseTemplate = _.template("I found <%= nbHits %> messages in <%= processingTimeMS %>ms!");
 const historyTemplate = _.template("Showing the last <%= nbHits %> messages: ");
 const responseItemTemplate = _.template("<%= text %>");
-const findMessages = function(index, terms, cb) {
-  index.search(terms, {
+const findMessages = function(index, team_id, terms, cb) {
+  index.search({
+    query: terms,
+    facetFilters: ['team_id:'+team_id]
+  }, {
     // insert a zero-width whitespaec character so that slack's
     // MD processor will highlight if its a part of a longer word
     highlightPreTag: '​*',
@@ -114,7 +127,7 @@ app.get('/', (req, res) => res.send('Hello World'));
 app.post('/api/slack/events', (req, res) => {
   var event = req.body.event;
   event.team_id = req.body.team_id;
-  event.team_id = req.body.event_id;
+  event.event_id = req.body.event_id;
   
   var strategies = [];
   switch(event.type) {
@@ -131,7 +144,7 @@ app.post('/api/slack/events', (req, res) => {
   }
   
   if(strategies.length === 0) {
-    return req.status(500).error({error: "Event type not allowed: " + req.body.event.type});
+    return req.status(500).error({error: "Event type not allowed: " + event.type});
   }
   
   async.parallel(strategies, (err, result) => {
@@ -145,9 +158,7 @@ app.post('/api/slack/events', (req, res) => {
 
 
 app.post('/api/slack/commands/search', (req, res) => {
-  var terms = req.body.text;
-
-  findMessages(req.algolia.index.messages, terms, (err, result) => {
+  findMessages(req.algolia.index.messages, req.body.team_id, req.body.text, (err, result) => {
     if(err) {
       res.status(500).send({error: err});
     } else {
