@@ -76,7 +76,7 @@ const indexMessage = (index, event, cb) => {
 const indexFile = (index, event, ctx, cb) => {
   if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
     console.log(event.file);
-    var cache = new streamBuffers.WriteableStreamBuffer();
+    var cache = new streamBuffers.WritableStreamBuffer();
 
     ctx.storage.get((err, storage) => {
       console.log("Token: " + storage[event.team_id].bot.bot_access_token);
@@ -92,13 +92,15 @@ const indexFile = (index, event, ctx, cb) => {
         console.log(response);
         console.log(response.statusCode);
       }).on('end', () => {
+        
+        var contents = cache.getContents();
         console.log("File received");
-        console.log(cache.getContents().length)
+        console.log(contents.length)
         const formData = {
           mode: 'document_photo',
           apiKey: ctx.secrets.HAVEN_KEY,
           file: {
-            value: cache.getContents(),
+            value: contents,
             options: {
               filename: 'file',
               contentType: event.file.contentType
@@ -152,7 +154,7 @@ const findMessages = function(index, team_id, terms, cb) {
     cb(null, {
       text: (terms === "") ? historyTemplate(content) : responseTemplate(content),
       attachments: _.map(content.hits, function(hit) {
-        return {
+        var {
           text: responseItemTemplate({
             text: hit._highlightResult.text.value
           }),
