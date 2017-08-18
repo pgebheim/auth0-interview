@@ -109,6 +109,7 @@ const indexFile = (index, event, ctx, cb) => {
           formData: formData
         }, (err, response, body) => {
           body = JSON.parse(body);
+          console.log("Haven On Demand Response");
           console.log(body);
           if(body && body.text_block) {
             event.ocrtext = _.map(body.text_block, ((b) => b.text)).join(' ');
