@@ -13,15 +13,18 @@ const indexMessage = function(index, event, cb) {
 
 const responseTemplate = _.template("You wanted history? We found <%= count %> in <%= processingTime %>ms!");
 const findMessages = function(index, terms, cb) {
-  index.search(terms, {hitsPerPage: 5, attributesToHighlight: ['text']}, function searchDone(err, content) {
+  index.search(terms, {
+    hitsPerPage: 5,
+    attributesToHighlight: ['text']
+  }, function searchDone(err, content) {
     if (err) {
       return cb(err);
     }
   
-    console.log(content);
     cb(null, {
       text: responseTemplate({count: content.nbHits, processingTime: content.processingTimeMS}),
       attachments: _.map(content.hits, function(hit) {
+        console.log(hit._highlighResult);
         return {
           text: hit.text
         };
