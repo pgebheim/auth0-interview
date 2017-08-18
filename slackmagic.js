@@ -1,6 +1,7 @@
 const algoliasearch = require('algoliasearch@3.10.2');
 const _ = require('lodash@4.8.2');
 const moment = require('moment@2.11.2');
+const slack = require('slack@8.3.1')
 var app = new (require('express'))();
 var bodyParser = require('body-parser')
 
@@ -59,13 +60,14 @@ const indexMessage = function(index, event, cb) {
 
 // Searches the algolia index, and formats a slack reply with the top 5 messages
 const responseTemplate = _.template("I found <%= nbHits %> messages in <%= processingTimeMS %>ms!");
-const responseItemTemplate = _.template("<%= date %>: <%= text %>")
+const historyTemplate = _.template("Showing the last <%= nbHits %> messages: ")
+const responseItemTemplate = _.template("<%= text %>")
 const findMessages = function(index, terms, cb) {
   index.search(terms, {
     // insert a zero-width whitespaec character so that slack's
     // MD processor will highlight if its a part of a longer word
-    highlightPreTag: '*',
-    highlightPostTag: '*​', 
+    highlightPreTag: '​*',
+    highlightPostTag: '*​',
 
     // Only display 5 records for this use case
     hitsPerPage: 5
@@ -75,12 +77,11 @@ const findMessages = function(index, terms, cb) {
     }
   
     cb(null, {
-      text: responseTemplate(content),
+      text: (terms === "") ? historyTemplate(content) : responseTemplate(content),
       attachments: _.map(content.hits, function(hit) {
         return {
           text: responseItemTemplate({
-            text: hit._highlightResult.text.value,
-            date: moment(hit.event_ts).fromNow()
+            text: hit._highlightResult.text.value
           }),
           mrkdwn_in: ["text"]
         };
@@ -120,7 +121,7 @@ app.post('/api/slack/events', (req, res) => {
 
 
 app.post('/api/slack/commands/history', (req, res) => {
-  var terms = req.body.terms;
+  var terms = req.body.text;
 
   findMessages(req.algolia.index.messages, terms, (err, result) => {
     if(err) {
@@ -128,6 +129,19 @@ app.post('/api/slack/commands/history', (req, res) => {
     } else {
       res.send(result);
     }
+  });
+});
+
+app.get('/api/oauth/callback', (req, res) => {
+  slack.oauth.access(
+    req.webtaskContext.secrets.SLACK_CLIENT_ID,
+    req.webtaskContext.secrets.SLACK_CLIENT_SECRET,
+    req.body.code,
+  (err, data) => {
+    if(err) {
+      re
+    }
+      res.send("Authorized -- Go invite @indexer_bot into a channel")
   });
 });
 
