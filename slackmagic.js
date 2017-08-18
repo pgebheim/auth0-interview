@@ -76,20 +76,25 @@ const indexFile = (index, event, ctx, cb) => {
   if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
     console.log(event.file);
     var cache = new streams.WritableStream();
-    
-    ctx.storage.get((err, data) => {
-      console.log(data);
+
+    ctx.storage.get((err, storage) => {
+      console.log("Token: " + storage[event.team_id].bot.bot_access_token);
       request.get(event.file.url_private_download, {
         auth: {
-          bearer: data[event.team_id].bot.bot_access_token
+          bearer: storage[event.team_id].bot.bot_access_token
         }
       }).on('response', (response) => {
+        console.log("Response received");
         cb(null, "Got File");
+      }).on('error', (response) => {
+        console.log("Get Error");
+        console.log(response);
+        console.log(response.statusCode);
       }).on('end', () => {
         console.log("File received");
         const formData = {
           file: {
-            value: new stream.ReadableSteam(cache.toBuffer()),
+            value: new streams.ReadableStream(cache.toBuffer()),
             options: {
               filename: 'file',
               contentType: event.file.contentType
