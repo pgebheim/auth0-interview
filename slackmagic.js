@@ -4,7 +4,6 @@ const moment = require('moment@2.11.2');
 const slack = require('slack@8.3.1');
 const request = require('request');
 const async = require('async');
-const streams = require('memory-streams@0.1.2');
 const streamBuffers = require('stream-buffers@3.0.1');
 
 var app = new (require('express'))();
@@ -154,12 +153,19 @@ const findMessages = function(index, team_id, terms, cb) {
     cb(null, {
       text: (terms === "") ? historyTemplate(content) : responseTemplate(content),
       attachments: _.map(content.hits, function(hit) {
-        var {
+        var message = {
           text: responseItemTemplate({
             text: hit._highlightResult.text.value
           }),
           mrkdwn_in: ["text"]
         };
+        
+        if(hit.file && hit.file.url_private) {
+          message.image_url = hit.file.url_private;
+          message.title = hit.file.name;
+        }
+        
+        return message;
       })
     });
   });
