@@ -4,7 +4,7 @@ const moment = require('moment@2.11.2');
 const slack = require('slack@8.3.1');
 const request = require('request');
 const async = require('async');
-const streams = require('memory-streams');
+const streams = require('memory-streams@0.1.2');
 
 var app = new (require('express'))();
 var bodyParser = require('body-parser');
@@ -74,7 +74,7 @@ const indexMessage = (index, event, cb) => {
 
 const indexFile = (index, event, ctx, cb) => {
   if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
-    console.log('Doing the file thing');
+    console.log(event.file);
     var cache = new streams.WritableStream();
     
     ctx.storage.get((err, data) => {
@@ -83,8 +83,11 @@ const indexFile = (index, event, ctx, cb) => {
         auth: {
           bearer: data[event.team_id].bot.bot_access_token
         }
-      }).on('response', (err, response) => {
+      }).on('response', (response) => {
+        console.log(response);
         cb(null, "Got File");
+        
+        
       });
       
     });
@@ -135,6 +138,8 @@ app.get('/', (req, res) => res.send('Hello World'));
 
 
 app.post('/api/slack/events', (req, res) => {
+  console.log(req.body);
+  
   var event = req.body.event;
   event.team_id = req.body.team_id;
   event.event_id = req.body.event_id;
@@ -155,7 +160,7 @@ app.post('/api/slack/events', (req, res) => {
   }
   
   if(strategies.length === 0) {
-    return res.status(500).error({error: "Event type not allowed: " + event.type});
+    return res.status(500).send({error: "Event type not allowed: " + event.type});
   }
   
   async.parallel(strategies, (err, result) => {
