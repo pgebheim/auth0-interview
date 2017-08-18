@@ -4,7 +4,8 @@ const moment = require('moment@2.11.2');
 const slack = require('slack@8.3.1');
 const request = require('request');
 const async = require('async');
-const streams = require('memory-streams');
+const streams = require('memory-streams@0.1.2');
+const streamBuffers = require('stream-buffers@3.0.1');
 
 var app = new (require('express'))();
 var bodyParser = require('body-parser');
@@ -75,7 +76,7 @@ const indexMessage = (index, event, cb) => {
 const indexFile = (index, event, ctx, cb) => {
   if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
     console.log(event.file);
-    var cache = new streams.WritableStream();
+    var cache = new streamBuffers.WriteableStreamBuffer();
 
     ctx.storage.get((err, storage) => {
       console.log("Token: " + storage[event.team_id].bot.bot_access_token);
@@ -92,11 +93,12 @@ const indexFile = (index, event, ctx, cb) => {
         console.log(response.statusCode);
       }).on('end', () => {
         console.log("File received");
+        console.log(cache.getContents().length)
         const formData = {
           mode: 'document_photo',
           apiKey: ctx.secrets.HAVEN_KEY,
           file: {
-            value: new streams.ReadableStream(cache.toBuffer()),
+            value: cache.getContents(),
             options: {
               filename: 'file',
               contentType: event.file.contentType
