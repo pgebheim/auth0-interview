@@ -4,7 +4,7 @@ const moment = require('moment@2.11.2');
 const slack = require('slack@8.3.1');
 const request = require('request');
 const async = require('async');
-const streams = require('memory-streams@0.1.2');
+const streams = require('memory-streams');
 
 var app = new (require('express'))();
 var bodyParser = require('body-parser');
@@ -93,6 +93,8 @@ const indexFile = (index, event, ctx, cb) => {
       }).on('end', () => {
         console.log("File received");
         const formData = {
+          mode: 'document_photo',
+          apiKey: ctx.secrets.HAVEN_KEY,
           file: {
             value: new streams.ReadableStream(cache.toBuffer()),
             options: {
@@ -100,14 +102,13 @@ const indexFile = (index, event, ctx, cb) => {
               contentType: event.file.contentType
             }
           },
-          mode: 'document_photo',
-          apiKey: ctx.secrets.HAVEN_KEY
         };
         
         request.post({
           url: "http://api.havenondemand.com/1/api/sync/ocrdocument/v1",
           formData: formData
         }, (err, response, body) => {
+          console.log(response);
           body = JSON.parse(body);
           console.log("Haven On Demand Response");
           console.log(body);
