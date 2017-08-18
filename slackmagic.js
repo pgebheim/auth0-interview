@@ -6,7 +6,7 @@ const request = require('request');
 const async = require('async');
 
 var app = new (require('express'))();
-var bodyParser = require('body-parser')
+var bodyParser = require('body-parser');
 
 //
 // Define some helper middlewares
@@ -19,7 +19,7 @@ const algoliaMiddleware = (req, res, next) => {
   };
 
   next();
-}
+};
 
 const slackTokenCheckMiddleware = (req, res, next) => {
   // Slack will send us a verification code if its for this particular app
@@ -33,7 +33,7 @@ const slackTokenCheckMiddleware = (req, res, next) => {
     return res.send({challenge: req.body.challenge});
   }
   next();
-}
+};
 
 //
 // Put middleware in our middleware chain
@@ -50,6 +50,7 @@ app.use(slackTokenCheckMiddleware);
 
 // Takes an event payload from slack and submits it to the algolia index
 const indexMessage = (index, event, cb) => {
+  console.log(event);
   event.event_ts = parseFloat(event.event_ts);
   index.addObject(event, event.event_id, (err, content) => {
     if(err) {
@@ -58,7 +59,7 @@ const indexMessage = (index, event, cb) => {
       cb(null, {objectID: content.objectID});
     }
   });
-}
+};
 
 const indexFile = (index, event, cb) => {
   if(_.includes(['png', 'jpg', 'jpeg'], event.file.filetype)) {
@@ -66,7 +67,7 @@ const indexFile = (index, event, cb) => {
       auth: {
         bearer: ''
       }
-    }).pipe();
+    });
   } else {
     cb(null, null);
   }
@@ -102,7 +103,7 @@ const findMessages = function(index, terms, cb) {
       })
     });
   });
-}
+};
 
 //
 // App request handlers
@@ -112,25 +113,28 @@ app.get('/', (req, res) => res.send('Hello World'));
 
 app.post('/api/slack/events', (req, res) => {
   var event = req.body.event;
-  var handlers = [];
-
+  event.team_id = req.body.team_id;
+  event.team_id = req.body.event_id;
+  
+  var strategies = [];
   switch(event.type) {
     case 'message':
-      console.log(req.body);
-      event.team_id = req.body.team_id;
-      handlers.push(_.partial(indexMessage, req.algolia.index.messages, event));
+      strategies.push(_.partial(indexMessage, req.algolia.index.messages, event));
+      break;
     // Add More
   }
   
-  if(event.subtype === "file_share") {
-    handlers.push(_.partial(indexFile, req.algolia.index.messages, event));
+  switch(event.subtype) {
+    case "file_share":
+      strategies.push(_.partial(indexFile, req.algolia.index.messages, event));
+      break;
   }
   
-  if(handler.length === 0) {
+  if(strategies.length === 0) {
     return req.status(500).error({error: "Event type not allowed: " + req.body.event.type});
   }
   
-  async.parallel(handlers, (err, result) => {
+  async.parallel(strategies, (err, result) => {
     if(err) {
       res.status(500).send({error: err});
     } else {
@@ -153,7 +157,6 @@ app.post('/api/slack/commands/search', (req, res) => {
 });
 
 app.get('/api/oauth/callback', (req, res) => {
-  console.log(req);
   slack.oauth.access({
     client_id: req.webtaskContext.secrets.SLACK_CLIENT_ID,
     client_secret: req.webtaskContext.secrets.SLACK_CLIENT_SECRET,
