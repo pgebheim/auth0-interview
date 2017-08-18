@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "lodash": "4.x"
+    "lodash": "4.x",
     "moment": "",
     "memory-streams": "",
     "slack": ""
